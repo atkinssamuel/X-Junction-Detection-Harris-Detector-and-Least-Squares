@@ -1,3 +1,5 @@
+from builtins import range
+
 import numpy as np
 from numpy.linalg import inv, lstsq
 
@@ -24,7 +26,22 @@ def saddle_point(I):
     #--- FILL ME IN ---
 
     m, n = I.shape
+    # Loop over entire image for each x and y point:
+    A = np.zeros([m*n, 6])
+    q = np.zeros([m*n, 1])
+    row_index = 0
+    for y in range(m):
+        for x in range(n):
+            A[row_index] = np.array([x*x, x*y, y*y, x, y, 1])
+            q[row_index] = I[y, x]
+            row_index += 1
+    print(A.shape)
+    # Now that the matrices are configured, we can use least squares:
+    [alpha], [beta], [gamma], [delta], [epsilon], [zeta] \
+        = np.linalg.lstsq(np.dot(A.T, A), np.dot(A.T, q), rcond=None)[0]
 
     #------------------
-
+    C = np.array([[2 * alpha, beta], [beta, 2 * gamma]])
+    D = np.array([[delta], [epsilon]])
+    pt = -np.dot(inv(C), D)
     return pt

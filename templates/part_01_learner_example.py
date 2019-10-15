@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from saddle_point import saddle_point
 
 # Build non-smooth but noise-free test patch.
