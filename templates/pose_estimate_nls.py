@@ -28,13 +28,33 @@ def pose_estimate_nls(K, Twcg, Ipts, Wpts):
     ps = np.reshape(Ipts, (2*tp, 1), 'F')   # Stacked vector of observations.
 
     dY = np.zeros((2*tp, 1))                # Residuals.
-    J  = np.zeros((2*tp, 6))                # Jacobian.
+    J = np.zeros((2*tp, 6))                # Jacobian.
 
     #--- FILL ME IN ---
+    E_pose = epose_from_hpose(Twcg)
+ 
+    for i in range(maxIters):
+        H_pose = hpose_from_epose(E_pose)
 
+        # Constructing A and b matrices to house Jacobian:
+        A = np.zeros([6, 6])
+        b = np.zeros([6, 1])
+        for j in range(Ipts.shape[1]):
+            J = find_jacobian(K, H_pose, Wpts[:, j].reshape([3, 1]))
+
+            # Adding J^TJ to A:
+            A += J.T.dot(J)
+
+            # Converting to H, finding error E, and adding J^TE to b:
+            H_pose_Wpt = np.linalg.inv(H_pose).dot(np.vstack((Wpts[:, j].reshape([3, 1]), 1)))
+            HK = K.dot(H_pose_Wpt[:-1])
+            f = HK / HK[-1]
+            E = Ipts[:, j].reshape([2, 1]) - f[:-1]
+            b += J.T.dot(E)
+        E_pose += np.linalg.inv(A).dot(b)
     #------------------
     
-    return Twc
+    return hpose_from_epose(E_pose)
 
 #----- Functions Go Below -----
 

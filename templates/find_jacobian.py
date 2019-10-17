@@ -20,6 +20,42 @@ def find_jacobian(K, Twc, Wpt):
     """
     #--- FILL ME IN ---
 
+    # Extracting rotation matrix from provided Twc:
+    rotation_matrix = Twc[:3, :3]
+
+    # Extracting transform (last column) from Twc:
+    transform = Twc[:3, -1:]
+
+    # dt, f:
+    dt = Wpt - transform
+    f = K.dot(rotation_matrix.T).dot(dt)
+
+    # df:
+    df = np.zeros([3, 6])
+    df[:, :3] = K.dot(rotation_matrix.T).dot((-np.eye(3)))
+
+    c, s = rotation_matrix[:2, 0] / np.sqrt(1 - rotation_matrix[2, 0] * rotation_matrix[2, 0])
+
+    # defining dr, dy, and dp matrices:
+    dr = rotation_matrix.dot(np.array([[0, 0, 0],
+                                       [0, 0, -1],
+                                       [0, 1, 0]]))
+    dy = np.array([[0, -1, 0],
+                  [1, 0, 0],
+                  [0, 0, 0]]).dot(rotation_matrix)
+    dp = np.array([[0, 0, c],
+                   [0, 0, s],
+                   [-c, -s, 0]]).dot(rotation_matrix)
+
+    df[:, 3:4] = K.dot(dr.T).dot(dt)
+    df[:, 4:5] = K.dot(dp.T).dot(dt)
+    df[:, 5:6] = K.dot(dy.T).dot(dt)
+
+    dfz = df[-1:, :]
+
+    # Applying Jacobian formula:
+    J = np.divide((f[-1, 0] * df - f.dot(dfz)), f[-1, 0] * f[-1, 0])[:-1, :]
+
     #------------------
 
     return J
