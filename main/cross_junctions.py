@@ -3,6 +3,26 @@ from scipy.ndimage.filters import *
 from matplotlib.path import Path
 import matplotlib.pyplot as plt
 
+def sort_points(points, bounds, Wpts):
+    # Now we have to filter the points to make the points match up with the Wpts:
+    bounding_edge_displacement = get_bounding_edge_displacement(points, bounds)
+    sorting_index = np.argsort(bounding_edge_displacement)
+    points = points[sorting_index][-Wpts.shape[1]:]
+
+    # Distance from UL-UR edge:
+    top_edge_displacement = [line_point_displacement(bounds[:, 0], bounds[:, 1], point) for point in points]
+    points = points[np.argsort(top_edge_displacement)]
+
+    split_points = np.array_split(points, 6)
+    point_array = []
+    for i, group in enumerate(split_points):
+        # Distance from UL-BL edge:
+        left_edge_displacement = [line_point_displacement(bounds[:, 0], bounds[:, -1], pt) for pt in group]
+        # Grouping and sorting points based on their displacement from the left edge:
+        split_points[i] = group[np.argsort(left_edge_displacement)]
+        for point in split_points[i]:
+            point_array.append(point)
+    return point_array
 
 def point_displacement(A, B):
     # Returns the distance between point A and point B:
@@ -71,19 +91,19 @@ def saddle_point(I):
         return np.array([I.shape[0] / 2, I.shape[1] / 2]).reshape(2, 1)
     if pt[0] < 0 or pt[0] > I.shape[1] or pt[1] < 0 or pt[1] > I.shape[0]:
         print("Out of range")
-        return np.array([I.shape[0] / 2, I.shape[1] / 2]).reshape(2, 1)
+        return np.array([[I.shape[0] / 2], [I.shape[1] / 2]])
     return pt
 
 
-def harris_corner_detector(I, corner_border):
+def harris_corner_detector(I, corner_border, sigma):
     # Passing Gaussian over image to reduce false corner detection:
-    I = gaussian_filter(I.astype(np.float32), sigma=1)
-    I_y = sobel(I, axis=0, mode='constant', cval=0)
-    I_x = sobel(I, axis=1, mode='constant', cval=0)
+    I_gauss = gaussian_filter(I.astype(np.float32), sigma=sigma)
+    I_y = sobel(I_gauss, axis=0, mode='constant', cval=0)
+    I_x = sobel(I_gauss, axis=1, mode='constant', cval=0)
 
-    Ixx = gaussian_filter(I_x * I_x, sigma=1)
-    Ixy = gaussian_filter(I_x * I_y, sigma=1)
-    Iyy = gaussian_filter(I_y * I_y, sigma=1)
+    Ixx = gaussian_filter(I_x * I_x, sigma=1, mode='constant', cval=0)
+    Ixy = gaussian_filter(I_x * I_y, sigma=1, mode='constant', cval=0)
+    Iyy = gaussian_filter(I_y * I_y, sigma=1, mode='constant', cval=0)
 
     d = Ixx * Iyy - Ixy * Ixy
     t = Ixx + Iyy
@@ -96,11 +116,10 @@ def harris_corner_detector(I, corner_border):
                 R[y, x] = 0
 
     R = np.ma.MaskedArray(R, fill_value=R.min())
-    R[R < 100] = np.ma.masked
 
     # Parameters:
-    point_count = 80
-    min_displacement = 15
+    point_count = 48
+    min_displacement = 55
     accepted_points = []
 
     # Arranging pts_column:
@@ -151,19 +170,22 @@ def cross_junctions(I, bounds, Wpts):
     """
     # --- FILL ME IN ---
     m, n = I.shape
-    scale = 0.07
     bounds = bounds.T
     UL = np.array([bounds[0][0], bounds[0][1]])
     UR = np.array([bounds[1][0], bounds[1][1]])
     BR = np.array([bounds[2][0], bounds[2][1]])
     BL = np.array([bounds[3][0], bounds[3][1]])
+    bottom_scale = 0.09
+    top_scale = 0.12
+    left_scale = 0.09
+    right_scale = 0.08
     bounds = bounds.T
 
     # "New" = N points
-    NUL = UL + (UR - UL) * scale + (BL - UL) * scale
-    NUR = UR + (UL - UR) * scale + (BR - UR) * scale
-    NBR = BR + (BL - BR) * scale + (UR - BR) * scale
-    NBL = BL + (BR - BL) * scale + (UL - BL) * scale
+    NUL = UL + (UR - UL) * left_scale + (BL - UL) * top_scale
+    NUR = UR + (UL - UR) * right_scale + (BR - UR) * top_scale
+    NBR = BR + (BL - BR) * right_scale + (UR - BR) * bottom_scale
+    NBL = BL + (BR - BL) * left_scale + (UL - BL) * bottom_scale
 
     bounds_list = NUL, NUR, NBR, NBL
     outer_bounds_list = UL, UR, BR, BL
@@ -180,37 +202,33 @@ def cross_junctions(I, bounds, Wpts):
     inner_border = Path(inner_bounding_poly, codes)
     outer_border = Path(outer_bounding_poly, codes)
 
-    points = harris_corner_detector(I, outer_border)
-
-    # Now we have to filter the 80 points that include the T-junction points to include only the 48 X-junction points
-    bounding_edge_displacement = get_bounding_edge_displacement(points, bounds)
-    sorting_index = np.argsort(bounding_edge_displacement)
-    points = points[sorting_index][-Wpts.shape[1]:]
-
-    # Distance from UL-UR edge:
-    top_edge_displacement = [line_point_displacement(bounds[:, 0], bounds[:, 1], point) for point in points]
-    points = points[np.argsort(top_edge_displacement)]
-
-    split_points = np.array_split(points, 6)
-    point_array = []
-    for i, group in enumerate(split_points):
-        # Distance from UL-BL edge:
-        left_edge_displacement = [line_point_displacement(bounds[:, 0], bounds[:, -1], pt) for pt in group]
-        # Grouping and sorting points based on their displacement from the left edge:
-        split_points[i] = group[np.argsort(left_edge_displacement)]
-        for point in split_points[i]:
-            point_array.append(point)
-
-    # Updating previous points with new point_array
-    points = point_array
+    sigma = 11
+    points = harris_corner_detector(I, inner_border, sigma)
 
     # Computing the exact point using the saddle_point function defined above:
     updated_points = []
-    window = 15
+    window = 5
     for point in points:
-        image_splice = I[point[1] - window: point[1] + window, point[0] - window: point[0] + window]
+        up = point[1] - window
+        down = point[1] + window
+        left = point[0] - window
+        right = point[0] + window
+        if right > I.shape[1]:
+            print("Too right")
+            right = I.shape[1]
+        if left < 0:
+            print("Too left")
+            left = 0
+        if up < 0:
+            print("Too up")
+            up = 0
+        if down > I.shape[0]:
+            print("Too down")
+            down = I.shape[0]
+        image_splice = I[up: down, left: right]
         updated_point = saddle_point(image_splice)
-        updated_point = np.array([updated_point[0] + point[0] - window, updated_point[1] + point[1] - window])
+        updated_point = np.array([updated_point[0] + left, updated_point[1] + up])
         updated_points.append([updated_point[0], updated_point[1]])
     updated_points = np.array(updated_points).reshape(48, 2)
-    return np.array(updated_points).T
+    sorted_points = sort_points(updated_points, bounds, Wpts)
+    return np.array(sorted_points).T, inner_border
