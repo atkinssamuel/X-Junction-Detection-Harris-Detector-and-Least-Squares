@@ -119,7 +119,7 @@ def harris_corner_detector(I, corner_border, sigma):
 
     # Parameters:
     point_count = 48
-    min_displacement = 55
+    min_displacement = 20
     accepted_points = []
 
     # Arranging pts_column:
@@ -179,6 +179,7 @@ def cross_junctions(I, bounds, Wpts):
     top_scale = 0.12
     left_scale = 0.09
     right_scale = 0.08
+
     bounds = bounds.T
 
     # "New" = N points
@@ -207,7 +208,7 @@ def cross_junctions(I, bounds, Wpts):
 
     # Computing the exact point using the saddle_point function defined above:
     updated_points = []
-    window = 5
+    window = 15
     for point in points:
         up = point[1] - window
         down = point[1] + window

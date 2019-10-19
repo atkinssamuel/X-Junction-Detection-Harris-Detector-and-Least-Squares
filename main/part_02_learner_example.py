@@ -75,7 +75,6 @@ if extra_tests == True:
 
         plt.imshow(image, cmap="gray")
         plt.title('image_00' + target_string)
-        plt.show()
         plt.savefig('../results/result_00{}.png'.format(target_string))
 
 
