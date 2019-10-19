@@ -232,4 +232,4 @@ def cross_junctions(I, bounds, Wpts):
         updated_points.append([updated_point[0], updated_point[1]])
     updated_points = np.array(updated_points).reshape(48, 2)
     sorted_points = sort_points(updated_points, bounds, Wpts)
-    return np.array(sorted_points).T, inner_border
+    return np.array(sorted_points).T, outer_border
