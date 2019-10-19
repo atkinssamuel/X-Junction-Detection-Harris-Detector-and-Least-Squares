@@ -3,6 +3,103 @@ from scipy.ndimage.filters import *
 from matplotlib.path import Path
 import matplotlib.pyplot as plt
 
+
+def cross_junctions(I, bounds, Wpts):
+    """
+    Find cross-junctions in image with subpixel accuracy.
+
+    The function locates a series of cross-junction points on a planar
+    calibration target, where the target is bounded in the image by the
+    specified quadrilateral. The number of cross-junctions identified
+    should be equal to the number of world points.
+
+    Note also that the world and image points must be in *correspondence*,
+    that is, the first world point should map to the first image point, etc.
+
+    Parameters:
+    -----------
+    I       - Single-band (greyscale) image as np.array (e.g., uint8, float).
+    bounds  - 2x4 np.array, bounding polygon (clockwise from upper left).
+    Wpts    - 3xn np.array of world points (in 3D, on calibration target).
+
+    Returns:
+    --------
+    Ipts  - 2xn np.array of cross-junctions (x, y), relative to the upper
+            left corner of I. These should be floating-point values.
+    """
+    # --- FILL ME IN ---
+    m, n = I.shape
+    bounds = bounds.T
+
+    # Setting the UL, UR, BR, and BL corners from the bounds array:
+    UL = np.array([bounds[0][0], bounds[0][1]])
+    UR = np.array([bounds[1][0], bounds[1][1]])
+    BR = np.array([bounds[2][0], bounds[2][1]])
+    BL = np.array([bounds[3][0], bounds[3][1]])
+
+    # Defining scales to bring the corners in so that the T and L junctions are not included:
+    bottom_scale = 0.09
+    top_scale = 0.12
+    left_scale = 0.09
+    right_scale = 0.08
+
+    # "New" = N points based on scales:
+    NUL = UL + (UR - UL) * left_scale + (BL - UL) * top_scale
+    NUR = UR + (UL - UR) * right_scale + (BR - UR) * top_scale
+    NBR = BR + (BL - BR) * right_scale + (UR - BR) * bottom_scale
+    NBL = BL + (BR - BL) * left_scale + (UL - BL) * bottom_scale
+
+    # Redefining bounds lists:
+    bounds_list = NUL, NUR, NBR, NBL
+    outer_bounds_list = UL, UR, BR, BL
+    inner_bounding_poly = [NUL, NUR, NBR, NBL, NUL]
+    outer_bounding_poly = [UL, UR, BR, BL, UL]
+
+    # Defining inner and outer borders using matplotlib's Path:
+    codes = [
+        Path.MOVETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.CLOSEPOLY
+    ]
+    inner_border = Path(inner_bounding_poly, codes)
+    outer_border = Path(outer_bounding_poly, codes)
+
+    # Calling harris_corner_detector to obtain estimates for corners:
+    sigma = 11
+    points = harris_corner_detector(I, inner_border, sigma)
+
+    # Initializing:
+    updated_points = []
+    window = 15
+    for point in points:
+        up = point[1] - window
+        down = point[1] + window
+        left = point[0] - window
+        right = point[0] + window
+        if right > I.shape[1]:
+            print("Too right")
+            right = I.shape[1]
+        if left < 0:
+            print("Too left")
+            left = 0
+        if up < 0:
+            print("Too up")
+            up = 0
+        if down > I.shape[0]:
+            print("Too down")
+            down = I.shape[0]
+        # Splicing image and computing exact locations of points using saddle_points function:
+        image_splice = I[up: down, left: right]
+        updated_point = saddle_point(image_splice)
+        updated_point = np.array([updated_point[0] + left, updated_point[1] + up])
+        updated_points.append([updated_point[0], updated_point[1]])
+    updated_points = np.array(updated_points).reshape(48, 2)
+    sorted_points = sort_points(updated_points, bounds, Wpts)
+    return np.array(sorted_points).T
+
+
 def sort_points(points, bounds, Wpts):
     # Now we have to filter the points to make the points match up with the Wpts:
     bounding_edge_displacement = get_bounding_edge_displacement(points, bounds)
@@ -145,91 +242,3 @@ def harris_corner_detector(I, corner_border, sigma):
     return np.fliplr(np.row_stack(accepted_points))
 
 
-def cross_junctions(I, bounds, Wpts):
-    """
-    Find cross-junctions in image with subpixel accuracy.
-
-    The function locates a series of cross-junction points on a planar 
-    calibration target, where the target is bounded in the image by the 
-    specified quadrilateral. The number of cross-junctions identified 
-    should be equal to the number of world points.
-
-    Note also that the world and image points must be in *correspondence*,
-    that is, the first world point should map to the first image point, etc.
-
-    Parameters:
-    -----------
-    I       - Single-band (greyscale) image as np.array (e.g., uint8, float).
-    bounds  - 2x4 np.array, bounding polygon (clockwise from upper left).
-    Wpts    - 3xn np.array of world points (in 3D, on calibration target).
-
-    Returns:
-    --------
-    Ipts  - 2xn np.array of cross-junctions (x, y), relative to the upper
-            left corner of I. These should be floating-point values.
-    """
-    # --- FILL ME IN ---
-    m, n = I.shape
-    bounds = bounds.T
-    UL = np.array([bounds[0][0], bounds[0][1]])
-    UR = np.array([bounds[1][0], bounds[1][1]])
-    BR = np.array([bounds[2][0], bounds[2][1]])
-    BL = np.array([bounds[3][0], bounds[3][1]])
-    bottom_scale = 0.09
-    top_scale = 0.12
-    left_scale = 0.09
-    right_scale = 0.08
-
-    bounds = bounds.T
-
-    # "New" = N points
-    NUL = UL + (UR - UL) * left_scale + (BL - UL) * top_scale
-    NUR = UR + (UL - UR) * right_scale + (BR - UR) * top_scale
-    NBR = BR + (BL - BR) * right_scale + (UR - BR) * bottom_scale
-    NBL = BL + (BR - BL) * left_scale + (UL - BL) * bottom_scale
-
-    bounds_list = NUL, NUR, NBR, NBL
-    outer_bounds_list = UL, UR, BR, BL
-
-    inner_bounding_poly = [NUL, NUR, NBR, NBL, NUL]
-    outer_bounding_poly = [UL, UR, BR, BL, UL]
-    codes = [
-        Path.MOVETO,
-        Path.LINETO,
-        Path.LINETO,
-        Path.LINETO,
-        Path.CLOSEPOLY
-    ]
-    inner_border = Path(inner_bounding_poly, codes)
-    outer_border = Path(outer_bounding_poly, codes)
-
-    sigma = 11
-    points = harris_corner_detector(I, inner_border, sigma)
-
-    # Computing the exact point using the saddle_point function defined above:
-    updated_points = []
-    window = 15
-    for point in points:
-        up = point[1] - window
-        down = point[1] + window
-        left = point[0] - window
-        right = point[0] + window
-        if right > I.shape[1]:
-            print("Too right")
-            right = I.shape[1]
-        if left < 0:
-            print("Too left")
-            left = 0
-        if up < 0:
-            print("Too up")
-            up = 0
-        if down > I.shape[0]:
-            print("Too down")
-            down = I.shape[0]
-        image_splice = I[up: down, left: right]
-        updated_point = saddle_point(image_splice)
-        updated_point = np.array([updated_point[0] + left, updated_point[1] + up])
-        updated_points.append([updated_point[0], updated_point[1]])
-    updated_points = np.array(updated_points).reshape(48, 2)
-    sorted_points = sort_points(updated_points, bounds, Wpts)
-    return np.array(sorted_points).T, outer_border
