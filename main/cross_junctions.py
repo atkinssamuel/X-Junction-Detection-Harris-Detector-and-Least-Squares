@@ -1,7 +1,6 @@
 import numpy as np
-from scipy.ndimage.filters import *
 from matplotlib.path import Path
-import matplotlib.pyplot as plt
+from scipy.ndimage.filters import *
 
 
 def cross_junctions(I, bounds, Wpts):
@@ -96,7 +95,10 @@ def cross_junctions(I, bounds, Wpts):
         updated_point = np.array([updated_point[0] + left, updated_point[1] + up])
         updated_points.append([updated_point[0], updated_point[1]])
     updated_points = np.array(updated_points).reshape(48, 2)
+    
+    # Sorting points according to their distance from the left and top edges
     sorted_points = sort_points(updated_points, bounds, Wpts)
+
     return np.array(sorted_points).T
 
 
@@ -126,13 +128,13 @@ def point_displacement(A, B):
     return np.sqrt(((A - B) ** 2).sum())
 
 
-def line_point_displacement(line_pt1, line_pt2, pt):
+def line_point_displacement(line_A, line_B, point):
     return abs(
-        (line_pt2[1] - line_pt1[1]) * pt[0] -
-        (line_pt2[0] - line_pt1[0]) * pt[1] +
-        line_pt2[0] * line_pt1[1] -
-        line_pt2[1] * line_pt1[0]
-    ) / point_displacement(line_pt1, line_pt2)
+        (line_B[1] - line_A[1]) * point[0] -
+        (line_B[0] - line_A[0]) * point[1] +
+        line_B[0] * line_A[1] -
+        line_B[1] * line_A[0]
+    ) / point_displacement(line_A, line_B)
 
 
 def get_bounding_edge_displacement(points, bounds):
@@ -195,16 +197,21 @@ def saddle_point(I):
 def harris_corner_detector(I, corner_border, sigma):
     # Passing Gaussian over image to reduce false corner detection:
     I_gauss = gaussian_filter(I.astype(np.float32), sigma=sigma)
+
+    # Computing x and y derivatives of the image:
     I_y = sobel(I_gauss, axis=0, mode='constant', cval=0)
     I_x = sobel(I_gauss, axis=1, mode='constant', cval=0)
 
+    # Creating entries of A matrix:
     Ixx = gaussian_filter(I_x * I_x, sigma=1, mode='constant', cval=0)
     Ixy = gaussian_filter(I_x * I_y, sigma=1, mode='constant', cval=0)
     Iyy = gaussian_filter(I_y * I_y, sigma=1, mode='constant', cval=0)
 
+    # Computing determinant and trace:
     d = Ixx * Iyy - Ixy * Ixy
     t = Ixx + Iyy
 
+    # Computing response over entire image:
     R = d - 0.05 * t ** 2
 
     for y in range(R.shape[0]):
@@ -212,6 +219,7 @@ def harris_corner_detector(I, corner_border, sigma):
             if not corner_border.contains_point([x, y]):
                 R[y, x] = 0
 
+    # Masking results matrix:
     R = np.ma.MaskedArray(R, fill_value=R.min())
 
     # Parameters:
@@ -239,6 +247,7 @@ def harris_corner_detector(I, corner_border, sigma):
             else:
                 accepted_points.append(prospective_point)
 
+    # Processing accepted_points into desired format:
     return np.fliplr(np.row_stack(accepted_points))
 
 

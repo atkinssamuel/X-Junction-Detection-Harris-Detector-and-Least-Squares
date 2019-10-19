@@ -19,17 +19,14 @@ for target_string in target_strings:
     image = imread('../targets/image_00' + target_string + '.png')
     bbox = np.array(bboxes['image_00' + target_string])
 
-    Ipts, inner_border = cross_junctions(image, bbox, Wpts)
+    Ipts = cross_junctions(image, bbox, Wpts)
     Ipts = Ipts.T
     fig, ax = plt.subplots()
-    patch = patches.PathPatch(inner_border, facecolor='none', lw=2)
-    ax.add_patch(patch)
     for index in range(len(Ipts)):
         plt.scatter(Ipts[index][0], Ipts[index][1])
 
     plt.imshow(image, cmap="gray")
     plt.title('image_00' + target_string)
-    #plt.show()
     plt.savefig('../results/result_00{}.png'.format(target_string))
 
 

@@ -1,4 +1,4 @@
-#!C:\Projects\Camera-Pose-Estimation-NL-Least-Squares\venv\Scripts\python.exe
+#!C:\Projects\X-Junction-Detection-Harris-Detector-and-Least-Squares\venv\Scripts\python.exe
 # EASY-INSTALL-ENTRY-SCRIPT: 'pip==19.0.3','console_scripts','pip3.7'
 __requires__ = 'pip==19.0.3'
 import re
